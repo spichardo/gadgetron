@@ -52,7 +52,7 @@ endif()
 #VERSIONING AND INSTALL PATHS
 set(GADGETRON_VERSION_MAJOR 3)
 set(GADGETRON_VERSION_MINOR 15)
-set(GADGETRON_VERSION_PATCH 0) 
+set(GADGETRON_VERSION_PATCH 0)
 set(GADGETRON_VERSION_STRING ${GADGETRON_VERSION_MAJOR}.${GADGETRON_VERSION_MINOR}.${GADGETRON_VERSION_PATCH})
 set(GADGETRON_SOVERSION ${GADGETRON_VERSION_MAJOR}.${GADGETRON_VERSION_MINOR})
 find_package(Git)
@@ -97,8 +97,35 @@ endif()
 option(GADGETRON_INSTALL_DEPENDENCIES "Install gadgetron dependencies" Off)
 
 # build options for OpenMP support
-find_package(OpenMP)
 option(USE_OPENMP "Use OpenMP" On)
+
+set(OPENMP_LIBRARIES "/usr/local/Cellar/llvm/6.0.0/lib")
+
+OPTION (USE_OpenMP "Use OpenMP to enamble <omp.h>" ON)
+
+# Find OpenMP
+if(APPLE AND USE_OpenMP)
+  set(OpenMP_C_LIB_NAMES "-L${OPENMP_LIBRARIES} -lomp -lgomp -liomp5")
+    if(CMAKE_C_COMPILER_ID MATCHES "Clang")
+        set(OpenMP_C "${CMAKE_C_COMPILER}")
+        set(OpenMP_C_FLAGS "-fopenmp=libomp -Wno-unused-command-line-argument")
+        set(CMAKE_C_LINK_FLAGS "${CMAKE_C_LINK_FLAGS} ${OpenMP_C_LIB_NAMES}")
+    endif()
+    if(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+      set(OpenMP_CXX "${CMAKE_CXX_COMPILER}")
+      set(OpenMP_CXX_FLAGS "-fopenmp=libomp -Wno-unused-command-line-argument")
+      set(CMAKE_CXX_LINK_FLAGS "${CMAKE_CXX_LINK_FLAGS} ${OpenMP_C_LIB_NAMES}")
+    endif()
+    set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} ${OpenMP_C_LIB_NAMES}")
+    SET (OPENMP_FOUND TRUE)
+
+else()
+    find_package(OpenMP)
+endif()
+
+
+
+
 if (OPENMP_FOUND)
   if(USE_OPENMP)
     message("OpenMP multithreading enabled")
@@ -205,7 +232,6 @@ if (CUDA_FOUND)
   option(GADGETRON_CUDA_ALL_COMPUTE_MODEL "Build CUDA components for all computing models" OFF)
   if (GADGETRON_CUDA_ALL_COMPUTE_MODEL)
     message("Compiling CUDA components to support all compute model 2.0, 3.0, 3.5, 5.0, 5.2, 6.0, 6.1")
-    set(CUDA_NVCC_FLAGS ${CUDA_NVCC_FLAGS} "-gencode arch=compute_20,code=sm_20")
     set(CUDA_NVCC_FLAGS ${CUDA_NVCC_FLAGS} "-gencode arch=compute_30,code=sm_30")
     set(CUDA_NVCC_FLAGS ${CUDA_NVCC_FLAGS} "-gencode arch=compute_35,code=sm_35")
     set(CUDA_NVCC_FLAGS ${CUDA_NVCC_FLAGS} "-gencode arch=compute_50,code=sm_50")

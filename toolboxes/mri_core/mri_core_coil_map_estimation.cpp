@@ -14,10 +14,16 @@
     #include <omp.h>
 #endif // USE_OMP
 
+#define REGION_DRIFT_CONSERVATION 0.04 //percentage of k-space around center to calculate 0-order preservation of drift
+#define IND_DRIFT_e1 (e1-(E1/2-drift_zone_e1)-1)
+#define IND_DRIFT_ro (ro-(RO/2-drift_zone_ro)-1)
+#define IND_DRIFT (IND_DRIFT_e1*ZeroDrift.get_size(1)+IND_DRIFT_ro)
+#define IS_DRIFT_ZONE (e1 > E1/2-drift_zone_e1 && e1<E1/2+drift_zone_e1 && ro > RO/2-drift_zone_ro && ro<RO/2+drift_zone_ro)
+
 namespace Gadgetron
 {
 
-template<typename T> 
+template<typename T>
 void coil_map_2d_Inati(const hoNDArray<T>& data, hoNDArray<T>& coilMap, size_t ks, size_t power)
 {
     try
@@ -27,6 +33,18 @@ void coil_map_2d_Inati(const hoNDArray<T>& data, hoNDArray<T>& coilMap, size_t k
         long long RO = data.get_size(0);
         long long E1 = data.get_size(1);
         long long CHA = data.get_size(2);
+
+        long long drift_zone_ro = (long long)(((value_type)RO)*REGION_DRIFT_CONSERVATION);
+        long long drift_zone_e1 = (long long)(((value_type)RO)*REGION_DRIFT_CONSERVATION);
+        if (drift_zone_ro==0)
+          drift_zone_ro++;
+        if (drift_zone_e1==0)
+            drift_zone_e1++;
+
+
+
+        GDEBUG("drift_zone_e1, drift_zone_e1 %li, %li\n",drift_zone_ro,drift_zone_e1);
+
 
         long long N = data.get_number_of_elements() / (RO*E1*CHA);
         GADGET_CHECK_THROW(N == 1);
@@ -49,7 +67,12 @@ void coil_map_2d_Inati(const hoNDArray<T>& data, hoNDArray<T>& coilMap, size_t k
 
         long long e1;
 
-        #pragma omp parallel private(e1) shared(ks, RO, E1, CHA, pSen, pData, halfKs, power, kss)
+        hoNDArray<value_type> ZeroDrift(2*drift_zone_e1-1,2*drift_zone_ro-1);
+        value_type * pDrift = ZeroDrift.begin();
+
+        Gadgetron::clear(ZeroDrift);
+
+        #pragma omp parallel private(e1) shared(ks, RO, E1, CHA, pSen, pData, halfKs, power, kss,pDrift)
         {
             hoNDArray<T> D(ks*ks, CHA);
             T* pD = D.begin();
@@ -74,6 +97,7 @@ void coil_map_2d_Inati(const hoNDArray<T>& data, hoNDArray<T>& coilMap, size_t k
             Gadgetron::clear(U1);
             Gadgetron::clear(V1);
             Gadgetron::clear(V);
+
 
             T phaseU1;
 
@@ -188,11 +212,16 @@ void coil_map_2d_Inati(const hoNDArray<T>& data, hoNDArray<T>& coilMap, size_t k
                     for (po = 1; po<kss; po++)
                     {
                         phaseU1 += pU1[po];
+
                     }
                     phaseU1 /= std::abs(phaseU1);
 
                     const value_type c = phaseU1.real();
                     const value_type d = phaseU1.imag();
+
+
+                    if (IS_DRIFT_ZONE)
+                        pDrift[IND_DRIFT]=-std::arg(phaseU1)/2.0;
 
                     for (cha = 0; cha<CHA; cha++)
                     {
@@ -202,6 +231,7 @@ void coil_map_2d_Inati(const hoNDArray<T>& data, hoNDArray<T>& coilMap, size_t k
 
                         reinterpret_cast< value_type(&)[2] >(pV1[cha])[0] = a*c + b*d;
                         reinterpret_cast< value_type(&)[2] >(pV1[cha])[1] = a*d - b*c;
+
                     }
 
                     for (cha = 0; cha<CHA; cha++)
@@ -210,7 +240,31 @@ void coil_map_2d_Inati(const hoNDArray<T>& data, hoNDArray<T>& coilMap, size_t k
                     }
                 }
             }
-        }
+          }
+
+          value_type pZero =0.0;
+
+          {
+          for (int e1 = 0; e1<(int)ZeroDrift.get_size(0); e1++)
+              for (int ro = 0; ro<(long long)ZeroDrift.get_size(1); ro++)
+                pZero+=pDrift[e1*ZeroDrift.get_size(1)+ro];
+
+              pZero/=(float)(ZeroDrift.get_size(0)*ZeroDrift.get_size(1));
+              GDEBUG("pZero, #total entries %f, %i\n",pZero,ZeroDrift.get_size(0)*ZeroDrift.get_size(1));
+          }
+          const T ZeroCorrec =std::polar(1.0f,(float)pZero);
+
+          #pragma omp parallel private(e1) shared(ks, RO, E1, CHA, pSen, ZeroCorrec)
+          {
+            long long cha, ro;
+            #pragma omp for
+            for (e1 = 0; e1<(int)E1; e1++)
+                for (ro = 0; ro<(long long)RO; ro++)
+                  for (cha = 0; cha<CHA; cha++)
+                  {
+                      pSen[cha*RO*E1 + e1*RO + ro]*=ZeroCorrec;
+                  }
+          }
     }
     catch (...)
     {
@@ -224,7 +278,7 @@ template EXPORTMRICORE void coil_map_2d_Inati(const hoNDArray< std::complex<doub
 
 // ------------------------------------------------------------------------
 
-template<typename T> 
+template<typename T>
 void coil_map_3d_Inati(const hoNDArray<T>& data, hoNDArray<T>& coilMap, size_t ks, size_t kz, size_t power)
 {
     try
@@ -398,7 +452,7 @@ template EXPORTMRICORE void coil_map_3d_Inati(const hoNDArray< std::complex<doub
 
 // ------------------------------------------------------------------------
 
-template<typename T> 
+template<typename T>
 void coil_map_2d_Inati_Iter(const hoNDArray<T>& data, hoNDArray<T>& coilMap, size_t ks, size_t iterNum, typename realType<T>::Type thres)
 {
     try
@@ -512,7 +566,7 @@ template EXPORTMRICORE void coil_map_2d_Inati_Iter(const hoNDArray< std::complex
 
 // ------------------------------------------------------------------------
 
-template<typename T> 
+template<typename T>
 void coil_map_3d_Inati_Iter(const hoNDArray<T>& data, hoNDArray<T>& coilMap, size_t ks, size_t kz, size_t iterNum, typename realType<T>::Type thres)
 {
     try
@@ -832,7 +886,7 @@ void coil_combine(const hoNDArray<T>& data, const hoNDArray<T>& coilMap, size_t 
                     hoNDArray<T> dataTmpN(dimCha);
                     hoNDArray<T> combinedCurrN(dimCombinedChaOne);
 
-#pragma omp for 
+#pragma omp for
                     for (d = 0; d < (long long)N; d++)
                     {
                         size_t d_coil = d;

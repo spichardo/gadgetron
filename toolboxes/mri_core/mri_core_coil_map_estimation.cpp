@@ -15,10 +15,10 @@
 #endif // USE_OMP
 
 #define REGION_DRIFT_CONSERVATION 0.04 //percentage of k-space around center to calculate 0-order preservation of drift
-#define IND_DRIFT_e1 (e1-(E1/2-drift_zone_e1)-1)
-#define IND_DRIFT_ro (ro-(RO/2-drift_zone_ro)-1)
-#define IND_DRIFT (IND_DRIFT_e1*ZeroDrift.get_size(1)+IND_DRIFT_ro)
-#define IS_DRIFT_ZONE (e1 > E1/2-drift_zone_e1 && e1<E1/2+drift_zone_e1 && ro > RO/2-drift_zone_ro && ro<RO/2+drift_zone_ro)
+#define IND_2D_DRIFT_e1 (e1-(E1/2-drift_zone_e1)-1)
+#define IND_2D_DRIFT_ro (ro-(RO/2-drift_zone_ro)-1)
+#define IND_2D_DRIFT (IND_2D_DRIFT_e1*ZeroDrift.get_size(1)+IND_2D_DRIFT_ro)
+#define IS_2D_DRIFT_ZONE (e1 > E1/2-drift_zone_e1 && e1<E1/2+drift_zone_e1 && ro > RO/2-drift_zone_ro && ro<RO/2+drift_zone_ro)
 
 namespace Gadgetron
 {
@@ -35,15 +35,11 @@ void coil_map_2d_Inati(const hoNDArray<T>& data, hoNDArray<T>& coilMap, size_t k
         long long CHA = data.get_size(2);
 
         long long drift_zone_ro = (long long)(((value_type)RO)*REGION_DRIFT_CONSERVATION);
-        long long drift_zone_e1 = (long long)(((value_type)RO)*REGION_DRIFT_CONSERVATION);
+        long long drift_zone_e1 = (long long)(((value_type)E1)*REGION_DRIFT_CONSERVATION);
         if (drift_zone_ro==0)
           drift_zone_ro++;
         if (drift_zone_e1==0)
             drift_zone_e1++;
-
-
-
-        GDEBUG("drift_zone_e1, drift_zone_e1 %li, %li\n",drift_zone_ro,drift_zone_e1);
 
 
         long long N = data.get_number_of_elements() / (RO*E1*CHA);
@@ -69,7 +65,6 @@ void coil_map_2d_Inati(const hoNDArray<T>& data, hoNDArray<T>& coilMap, size_t k
 
         hoNDArray<value_type> ZeroDrift(2*drift_zone_e1-1,2*drift_zone_ro-1);
         value_type * pDrift = ZeroDrift.begin();
-
         Gadgetron::clear(ZeroDrift);
 
         #pragma omp parallel private(e1) shared(ks, RO, E1, CHA, pSen, pData, halfKs, power, kss,pDrift)
@@ -220,8 +215,8 @@ void coil_map_2d_Inati(const hoNDArray<T>& data, hoNDArray<T>& coilMap, size_t k
                     const value_type d = phaseU1.imag();
 
 
-                    if (IS_DRIFT_ZONE)
-                        pDrift[IND_DRIFT]=-std::arg(phaseU1)/2.0;
+                    if (IS_2D_DRIFT_ZONE)
+                        pDrift[IND_2D_DRIFT]=-std::arg(phaseU1)/2.0;
 
                     for (cha = 0; cha<CHA; cha++)
                     {
@@ -250,11 +245,10 @@ void coil_map_2d_Inati(const hoNDArray<T>& data, hoNDArray<T>& coilMap, size_t k
                 pZero+=pDrift[e1*ZeroDrift.get_size(1)+ro];
 
               pZero/=(float)(ZeroDrift.get_size(0)*ZeroDrift.get_size(1));
-              GDEBUG("pZero, #total entries %f, %i\n",pZero,ZeroDrift.get_size(0)*ZeroDrift.get_size(1));
           }
           const T ZeroCorrec =std::polar(1.0f,(float)pZero);
 
-          #pragma omp parallel private(e1) shared(ks, RO, E1, CHA, pSen, ZeroCorrec)
+          #pragma omp parallel private(e1) shared(RO, E1, CHA, pSen, ZeroCorrec)
           {
             long long cha, ro;
             #pragma omp for
@@ -277,6 +271,11 @@ template EXPORTMRICORE void coil_map_2d_Inati(const hoNDArray< std::complex<floa
 template EXPORTMRICORE void coil_map_2d_Inati(const hoNDArray< std::complex<double> >& data, hoNDArray< std::complex<double> >& coilMap, size_t ks, size_t power);
 
 // ------------------------------------------------------------------------
+#define IND_3D_DRIFT_e1 IND_2D_DRIFT_e1
+#define IND_3D_DRIFT_ro IND_2D_DRIFT_ro
+#define IND_3D_DRIFT_e2 (e2-(E2/2-drift_zone_e2)-1)
+#define IND_3D_DRIFT (IND_3D_DRIFT_e2*ZeroDrift.get_size(1)*ZeroDrift.get_size(2) + IND_3D_DRIFT_e1*ZeroDrift.get_size(1)+IND_2D_DRIFT_ro)
+#define IS_3D_DRIFT_ZONE (e1 > E1/2-drift_zone_e1 && e1<E1/2+drift_zone_e1 && e2 > E2/2-drift_zone_e2 && e2<E2/2+drift_zone_e2 && ro > RO/2-drift_zone_ro && ro<RO/2+drift_zone_ro)
 
 template<typename T>
 void coil_map_3d_Inati(const hoNDArray<T>& data, hoNDArray<T>& coilMap, size_t ks, size_t kz, size_t power)
@@ -289,6 +288,16 @@ void coil_map_3d_Inati(const hoNDArray<T>& data, hoNDArray<T>& coilMap, size_t k
         long long E1 = data.get_size(1);
         long long E2 = data.get_size(2);
         long long CHA = data.get_size(3);
+
+        long long drift_zone_ro = (long long)(((value_type)RO)*REGION_DRIFT_CONSERVATION);
+        long long drift_zone_e1 = (long long)(((value_type)E1)*REGION_DRIFT_CONSERVATION);
+        long long drift_zone_e2 = (long long)(((value_type)E2)*REGION_DRIFT_CONSERVATION);
+        if (drift_zone_ro==0)
+          drift_zone_ro++;
+        if (drift_zone_e1==0)
+            drift_zone_e1++;
+        if (drift_zone_e2==0)
+            drift_zone_e2++;
 
         long long N = data.get_number_of_elements() / (RO*E1*E2*CHA);
         GADGET_CHECK_THROW(N == 1);
@@ -316,6 +325,10 @@ void coil_map_3d_Inati(const hoNDArray<T>& data, hoNDArray<T>& coilMap, size_t k
         long long halfKz = (long long)kz / 2;
 
         long long e2;
+
+        hoNDArray<value_type> ZeroDrift(2*drift_zone_e2-1,2*drift_zone_e1-1,2*drift_zone_ro-1);
+        value_type * pDrift = ZeroDrift.begin();
+        Gadgetron::clear(ZeroDrift);
 
         #pragma omp parallel default(none) private(e2) shared(ks, kz, RO, E1, E2, CHA, pSen, pData, halfKs, halfKz, power, kss)
         {
@@ -427,6 +440,9 @@ void coil_map_3d_Inati(const hoNDArray<T>& data, hoNDArray<T>& coilMap, size_t k
                         }
                         phaseU1 /= std::abs(phaseU1);
 
+                        if (IS_3D_DRIFT_ZONE)
+                            pDrift[IND_3D_DRIFT]=-std::arg(phaseU1)/2.0;
+
                         // put the mean object phase to coil map
                         conjugate(V1, V1);
                         scal(phaseU1, V1);
@@ -438,6 +454,30 @@ void coil_map_3d_Inati(const hoNDArray<T>& data, hoNDArray<T>& coilMap, size_t k
                     }
                 }
             }
+        }
+        value_type pZero =0.0;
+
+        {
+          for (int e2 = 0; e2<(int)ZeroDrift.get_size(0); e2++)
+              for (int e1 = 0; e1<(int)ZeroDrift.get_size(1); e1++)
+                  for (int ro = 0; ro<(int)ZeroDrift.get_size(2); ro++)
+                    pZero+=pDrift[e2*ZeroDrift.get_size(1)*ZeroDrift.get_size(2)+e1*ZeroDrift.get_size(2)+ro];
+
+                      pZero/=(float)(ZeroDrift.get_size(0)*ZeroDrift.get_size(1));
+        }
+        const T ZeroCorrec =std::polar(1.0f,(float)pZero);
+
+        #pragma omp parallel private(e2) shared(RO, E1, E2,CHA, pSen, ZeroCorrec)
+        {
+          long long cha, e1,ro;
+          #pragma omp for
+          for (e2 = 0; e2<(int)E2; e2++)
+            for (e1 = 0; e1<(long long)E1; e1++)
+                for (ro = 0; ro<(long long)RO; ro++)
+                  for (cha = 0; cha<CHA; cha++)
+                  {
+                      pSen[cha*RO*E1*E2 + e2*RO*E1 + e1*RO + ro]*=ZeroCorrec;
+                  }
         }
     }
     catch (...)

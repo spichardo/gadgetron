@@ -248,7 +248,7 @@ void coil_map_2d_Inati(const hoNDArray<T>& data, hoNDArray<T>& coilMap, size_t k
           }
           const T ZeroCorrec =std::polar(1.0f,(float)pZero);
 
-          #pragma omp parallel private(e1) shared(RO, E1, CHA, pSen, ZeroCorrec)
+          #pragma omp parallel private(e1) shared(RO, E1, CHA, pSen)
           {
             long long cha, ro;
             #pragma omp for
@@ -330,7 +330,7 @@ void coil_map_3d_Inati(const hoNDArray<T>& data, hoNDArray<T>& coilMap, size_t k
         value_type * pDrift = ZeroDrift.begin();
         Gadgetron::clear(ZeroDrift);
 
-        #pragma omp parallel default(none) private(e2) shared(ks, kz, RO, E1, E2, CHA, pSen, pData, halfKs, halfKz, power, kss)
+        #pragma omp parallel default(none) private(e2) shared(ks, kz, RO, E1, E2, CHA, pSen, pData, halfKs, halfKz, power, kss, drift_zone_e1, drift_zone_e2, drift_zone_ro, pDrift, ZeroDrift)
         {
             hoMatrix<T> D(kss, CHA);
             hoMatrix<T> DC(kss, CHA);
@@ -467,7 +467,7 @@ void coil_map_3d_Inati(const hoNDArray<T>& data, hoNDArray<T>& coilMap, size_t k
         }
         const T ZeroCorrec =std::polar(1.0f,(float)pZero);
 
-        #pragma omp parallel private(e2) shared(RO, E1, E2,CHA, pSen, ZeroCorrec)
+        #pragma omp parallel private(e2) shared(RO, E1, E2,CHA, pSen)
         {
           long long cha, e1,ro;
           #pragma omp for

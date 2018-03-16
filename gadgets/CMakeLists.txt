@@ -9,11 +9,11 @@ find_package(FFTW3 COMPONENTS single double)
 
 include_directories(
   ${CMAKE_BINARY_DIR}/apps/gadgetron
-  ${ACE_INCLUDE_DIR} 
+  ${ACE_INCLUDE_DIR}
   ${Boost_INCLUDE_DIR}
   ${FFTW3_INCLUDE_DIR}
   ${ISMRMRD_INCLUDE_DIR}
-  ${CMAKE_SOURCE_DIR}/apps/gadgetron 
+  ${CMAKE_SOURCE_DIR}/apps/gadgetron
   ${CMAKE_SOURCE_DIR}/toolboxes/core
   ${CMAKE_SOURCE_DIR}/toolboxes/core/cpu
   ${CMAKE_SOURCE_DIR}/toolboxes/core/cpu/hostutils
@@ -43,7 +43,7 @@ endif ()
 if (CUDA_FOUND)
   message("Cuda found, compiling gpu accelerated gadgets")
   add_subdirectory(pmri)
-  add_subdirectory(radial)  
+  add_subdirectory(radial)
   add_subdirectory(hyper)
   add_subdirectory(gpu)
   add_subdirectory(mri_noncartesian)
@@ -70,7 +70,7 @@ if (BUILD_PYTHON_SUPPORT)
     message(STATUS "PYTHON_LIBRARIES: ${PYTHON_LIBRARIES}")
     message(STATUS "NUMPY_INCLUDE_DIRS: ${NUMPY_INCLUDE_DIRS}")
     message(STATUS "Compiling Python Gadgets")
-    add_subdirectory(python)   
+    add_subdirectory(python)
     add_definitions(-DCOMPILING_WITH_PYTHON_SUPPORT)
   else ()
     if(NOT Boost_PYTHON_FOUND)
@@ -85,6 +85,7 @@ add_subdirectory(util)
 find_package(DCMTK)
 if(DCMTK_FOUND)
   message("Compiling DICOM gadget")
+  add_subdirectory(proteus)
   add_subdirectory(dicom)
 else()
   message("DCMTK NOT found, not compiling DICOM gadget")
